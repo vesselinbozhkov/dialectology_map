@@ -1,0 +1,11 @@
+# Python deps; also needs the `tesseract` binary with the Bulgarian pack (apt: tesseract-ocr tesseract-ocr-bul)
+numpy
+pillow
+opencv-python-headless
+scipy
+scikit-image
+pymupdf
+geopandas
+rasterio
+shapely
+pyproj
