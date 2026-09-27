@@ -24,7 +24,7 @@ from shapely.ops import transform as shp_transform, unary_union
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from georef import pixel_to_laea  # noqa: E402
 from legend import legend_crops, ocr  # noqa: E402
-from register import apply, estimate  # noqa: E402
+from register import apply, city_dots, estimate_robust  # noqa: E402
 from segment import (add_grey_class, classify, colour_classes, find_hatching,  # noqa: E402
                      find_line_hatching, find_swatches)
 from territory import base_ink, ink, reference, territory_mask  # noqa: E402
@@ -56,7 +56,7 @@ def hex_colour(bgr):
 def process(n, ref, T, B, catalog):
     page = FIRST_PAGE + n
     img = cv2.imread(str(ROOT / f"data/raw/bda4/{page:04d}.png"))
-    warp, cc = estimate(ref, img)
+    warp, dot_err, method = estimate_robust(ref, img, REF_DOTS)
     al = apply(img, warp, ref.shape)
     swatches = find_swatches(al)
     classes = add_grey_class(al, T, colour_classes(swatches))
@@ -70,7 +70,7 @@ def process(n, ref, T, B, catalog):
     rows = {"maps": [], "legend": [], "areals": [], "hatch_mixed": [], "hatch_lines": []}
     unassigned = float(((labels == 0) & T).sum() / T.sum())
     rows["maps"].append({"map_id": map_id, "page": page, "title_ocr": catalog.get(map_id, ""),
-                         "ecc": round(float(cc), 3), "n_swatches": len(swatches),
+                         "reg_method": method, "reg_dot_err_px": round(dot_err, 2), "n_swatches": len(swatches),
                          "n_classes": len(classes), "unassigned_share": round(unassigned, 4),
                          "n_hatch_mixed": len(mixed), "n_hatch_lines": len(lines), "geometry": None})
     for i, (s, t) in enumerate(zip(swatches, texts)):
@@ -82,7 +82,7 @@ def process(n, ref, T, B, catalog):
         g = polygons(labels == k)
         if g is not None:
             rows["areals"].append({"map_id": map_id, "class": k, "colour": hex_colour(c["bgr"]),
-                                   "is_grey_absent": bool(c.get("grey")), "geometry": to_geo(g)})
+                                   "special": "absent" if c.get("grey") else ("Н/Х/У" if c.get("beige") else ""), "geometry": to_geo(g)})
     for m, a, b in mixed:
         rows["hatch_mixed"].append({"map_id": map_id, "class_a": a, "class_b": b,
                                     "geometry": to_geo(polygons(m))})
@@ -106,8 +106,13 @@ def process(n, ref, T, B, catalog):
     return rows
 
 
+REF_DOTS = None
+
+
 def main(first=1, last=145):
+    global REF_DOTS
     ref, T, B = reference(), territory_mask(), base_ink()
+    REF_DOTS = city_dots(ref)
     catalog = {r["id"]: r["title_ocr"] for r in csv.DictReader(open(ROOT / "catalog/maps.csv"))}
     allrows = {k: [] for k in ["maps", "legend", "areals", "hatch_mixed", "hatch_lines"]}
     for n in range(first, last + 1):
@@ -120,7 +125,7 @@ def main(first=1, last=145):
             allrows[k].extend(v)
         m = rows["maps"][0]
         print(f"{m['map_id']}: classes={m['n_classes']} unassigned={m['unassigned_share']:.1%} "
-              f"mixed={m['n_hatch_mixed']} lines={m['n_hatch_lines']} ecc={m['ecc']}", flush=True)
+              f"mixed={m['n_hatch_mixed']} lines={m['n_hatch_lines']} reg={m['reg_method']}:{m['reg_dot_err_px']}px", flush=True)
     OUT.mkdir(parents=True, exist_ok=True)
     gpkg = OUT / "bda_vol4.gpkg"
     if gpkg.exists():

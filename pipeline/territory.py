@@ -7,7 +7,7 @@ import cv2
 import numpy as np
 from scipy import ndimage
 
-from register import apply, estimate
+from register import apply, estimate_robust
 
 ROOT = Path(__file__).resolve().parent.parent
 # regions of the reference page that are not the main map
@@ -32,7 +32,7 @@ def blank_frame(shape):
 def territory_mask():
     ref = reference()
     page = cv2.imread(str(ROOT / "data/raw/bda4/0023.png"))
-    warp, _ = estimate(ref, page)
+    warp, _, _ = estimate_robust(ref, page)
     al = apply(page, warp, ref.shape)
     hsv = cv2.cvtColor(al, cv2.COLOR_BGR2HSV)
     m = (hsv[..., 1] > 60) & blank_frame(ref.shape)
@@ -67,7 +67,7 @@ def base_ink(pages=range(27, 172, 6)):
     n = 0
     for p in pages:
         img = cv2.imread(str(ROOT / f"data/raw/bda4/{p:04d}.png"))
-        warp, _ = estimate(ref, img)
+        warp, _, _ = estimate_robust(ref, img)
         acc += cv2.dilate(ink(apply(img, warp, ref.shape)).astype(np.uint8), np.ones((3, 3), np.uint8))
         n += 1
     base = acc / n > 0.6

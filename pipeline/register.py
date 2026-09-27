@@ -42,3 +42,86 @@ def apply(img_bgr, warp, shape, nearest=False):
     flags = (cv2.INTER_NEAREST if nearest else cv2.INTER_LINEAR) | cv2.WARP_INVERSE_MAP
     return cv2.warpAffine(img_bgr, warp, (w, h), flags=flags,
                           borderMode=cv2.BORDER_CONSTANT, borderValue=(255, 255, 255))
+
+
+def city_dots(img_bgr, thresh=70):
+    """Centres of the small filled black dots that mark cities on the base map."""
+    g = cv2.cvtColor(cv2.medianBlur(img_bgr, 3), cv2.COLOR_BGR2GRAY)
+    b = (g < thresh).astype(np.uint8)
+    n, _, st, cen = cv2.connectedComponentsWithStats(b)
+    keep = [i for i in range(1, n)
+            if 6 <= st[i][2] <= 13 and 6 <= st[i][3] <= 13
+            and st[i][4] > 0.55 * st[i][2] * st[i][3] and abs(int(st[i][2]) - int(st[i][3])) <= 3]
+    return cen[keep].astype(np.float32)
+
+
+def dot_error(ref_dots, img_dots, warp):
+    """Median distance (px) between reference dots and page dots mapped by warp (page->ref)."""
+    if len(img_dots) == 0:
+        return float("inf")
+    mapped = img_dots @ warp[:, :2].T + warp[:, 2]
+    d = np.linalg.norm(ref_dots[:, None] - mapped[None], axis=2).min(1)
+    return float(np.median(d))
+
+
+def dots_similarity(ref_dots, img_dots, tol=4.0, min_dist=150):
+    """RANSAC over dot pairs: similarity transform page->ref with most inliers."""
+    best, best_inl = None, 0
+    if len(img_dots) < 3 or len(ref_dots) < 3:
+        return None
+    rd = np.linalg.norm(ref_dots[:, None] - ref_dots[None], axis=2)
+    pd = np.linalg.norm(img_dots[:, None] - img_dots[None], axis=2)
+    ri, rj = np.where(np.triu(rd > min_dist))
+    pi, pj = np.where(np.triu(pd > min_dist))
+    rng = np.random.default_rng(0)
+    sel = rng.choice(len(pi), size=min(len(pi), 150), replace=False)
+    for a in sel:
+        p, q = img_dots[pi[a]], img_dots[pj[a]]
+        ratio = rd[ri, rj] / pd[pi[a], pj[a]]
+        for b in np.flatnonzero(np.abs(ratio - 1) < 0.12):
+            for r0, r1 in ((ri[b], rj[b]), (rj[b], ri[b])):
+                src = np.float32([p, q])
+                dst = np.float32([ref_dots[r0], ref_dots[r1]])
+                M, _ = cv2.estimateAffinePartial2D(src, dst)
+                if M is None or abs(np.arctan2(M[1, 0], M[0, 0])) > 0.12:
+                    continue
+                mapped = img_dots @ M[:, :2].T + M[:, 2]
+                inl = (np.linalg.norm(ref_dots[:, None] - mapped[None], axis=2).min(0) < tol).sum()
+                if inl > best_inl:
+                    best, best_inl = M, inl
+    if best is None:
+        return None
+    # refit on inliers
+    mapped = img_dots @ best[:, :2].T + best[:, 2]
+    d = np.linalg.norm(ref_dots[:, None] - mapped[None], axis=2)
+    m = d.min(0) < tol
+    M, _ = cv2.estimateAffine2D(img_dots[m], ref_dots[d.argmin(0)[m]])
+    return M if M is not None else best
+
+
+def estimate_robust(ref_bgr, img_bgr, ref_dots=None):
+    """Try ECC from phase correlation and from a dot-based similarity; keep the
+    warp with the smallest median city-dot error. Returns (warp, dot_err, method)."""
+    ref_dots = city_dots(ref_bgr) if ref_dots is None else ref_dots
+    img_dots = city_dots(img_bgr)
+    cands = []
+    w, _ = estimate(ref_bgr, img_bgr)
+    cands.append((dot_error(ref_dots, img_dots, cv2.invertAffineTransform(w)), w, "ecc"))
+    if True:  # always try the dot-based fit; it is usually the most precise
+        M = dots_similarity(ref_dots, img_dots)
+        if M is not None:
+            cands.append((dot_error(ref_dots, img_dots, M.astype(np.float32)), M.astype(np.float32), "dots"))
+            a, b = dark_layer(ref_bgr), dark_layer(img_bgr)
+            try:
+                crit = (cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 200, 1e-6)
+                _, w2 = cv2.findTransformECC(a, b, cv2.invertAffineTransform(M).astype(np.float32),
+                                             cv2.MOTION_AFFINE, crit, None, 5)
+                cands.append((dot_error(ref_dots, img_dots, cv2.invertAffineTransform(w2)), w2, "dots+ecc"))
+            except cv2.error:
+                pass
+    # ECC warps map ref->img (used with WARP_INVERSE_MAP); dot warps map img->ref
+    best = min(cands, key=lambda c: c[0])
+    err, w, method = best
+    if method == "dots":
+        w = cv2.invertAffineTransform(w).astype(np.float32)
+    return w, err, method

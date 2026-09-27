@@ -77,19 +77,26 @@ def classify(al, territory, classes, max_dist=28.0, fill_radius=10):
 
 
 GREY_BGR = (231, 231, 231)  # base fill = territory where the mapped feature is absent
+BEIGE_BGR = (156, 196, 204)  # zones marked Н (other lexeme) / Х (no material) / У
 
 
-def add_grey_class(al, territory, classes, min_share=0.03):
-    """Monochrome/distribution maps paint the rest of the territory light grey."""
+def add_grey_class(al, territory, classes, min_share=0.003):
+    """Add the atlas-wide conventional fills when present on the map:
+    light grey (feature absent) and beige (Н/Х/У zones). These are often not
+    in the legend."""
     L = lab(al)[territory]
-    g = lab(np.uint8([[GREY_BGR]]))[0, 0]
-    share = (np.linalg.norm(L - g, axis=1) < 8).mean()
-    if share > min_share and all(np.linalg.norm(k["lab"] - g) > 12 for k in classes):
-        classes.append({"lab": g, "bgr": GREY_BGR, "swatches": [], "grey": True})
+    for bgr, kind in ((GREY_BGR, "grey"), (BEIGE_BGR, "beige")):
+        c = lab(np.uint8([[bgr]]))[0, 0]
+        share = (np.linalg.norm(L - c, axis=1) < 10).mean()
+        match = [k for k in classes if np.linalg.norm(k["lab"] - c) <= 12]
+        if match:
+            match[0][kind] = True
+        elif share > min_share:
+            classes.append({"lab": c, "bgr": bgr, "swatches": [], kind: True})
     return classes
 
 
-def find_hatching(labels, territory, win=21, min_share=0.2, min_changes=0.12, min_area=150):
+def find_hatching(labels, territory, win=21, min_share=0.2, min_changes=0.12, min_area=400):
     """Striped zones (two alternating legend colours) -> list of (mask, class_a, class_b).
 
     Inside hatching the label changes every few pixels; at an ordinary border
