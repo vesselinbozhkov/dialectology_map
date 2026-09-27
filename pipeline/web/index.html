@@ -1,3 +1,4 @@
+<meta charset="utf-8">
 <title>БДА Морфология · ареали</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -153,12 +154,12 @@ input[type="search"]:focus-visible, button:focus-visible, .item:focus-visible { 
   const map = L.map("map", { zoomSnap: 0.25, attributionControl: false, preferCanvas: false });
   const svgRenderer = L.svg({ padding: 0.5 }).addTo(map);
 
-  const land = L.geoJSON(territory, { style: () => ({ color: css("--muted"), weight: 1, fillColor: css("--land"), fillOpacity: 1 }) }).addTo(map);
+  const land = L.geoJSON(territory, { renderer: svgRenderer, style: () => ({ color: css("--muted"), weight: 1, fillColor: css("--land"), fillOpacity: 1 }) }).addTo(map);
   map.fitBounds(land.getBounds(), { padding: [10, 10] });
   const overlay = L.layerGroup().addTo(map);
   const cityLayer = L.layerGroup().addTo(map);
   cities.forEach((c) => {
-    L.circleMarker([c.lat, c.lon], { radius: 2.5, color: css("--city"), weight: 1, fillColor: css("--city"), fillOpacity: 1, interactive: false })
+    L.circleMarker([c.lat, c.lon], { renderer: svgRenderer, radius: 2.5, color: css("--city"), weight: 1, fillColor: css("--city"), fillOpacity: 1, interactive: false })
       .bindTooltip(c.name, { permanent: true, direction: "right", className: "city-label", offset: [3, 0] }).addTo(cityLayer);
   });
 
@@ -232,7 +233,7 @@ input[type="search"]:focus-visible, button:focus-visible, .item:focus-visible { 
         layer.bindTooltip(tip, { sticky: true });
       },
     }).addTo(overlay);
-    cityLayer.bringToFront && cityLayer.eachLayer((l) => l.bringToFront());
+    cityLayer.eachLayer((l) => l.bringToFront());
 
     const warn = m.reg_err > 1.0;
     $("head").innerHTML = '<p class="eyebrow"></p><h2></h2><div class="meta"></div>';
