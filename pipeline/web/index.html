@@ -1,0 +1,270 @@
+<title>БДА Морфология · ареали</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=PT+Sans:wght@400;700&family=PT+Serif:ital,wght@0,400;0,700;1,400&family=PT+Mono&display=swap">
+<style>
+/* Leaflet 1.9.4 core styles (inlined: external stylesheets are blocked) */
+/*LEAFLET_CSS*/
+
+:root {
+  --bg: #eef0f2;
+  --panel: #f8f9fa;
+  --ink: #1d232b;
+  --muted: #5b6572;
+  --line: #cbd1d8;
+  --accent: #2b4c7e;
+  --accent-soft: #dfe7f2;
+  --warn: #9a5b00;
+  --warn-soft: #f6ead6;
+  --map-bg: #e4e8ec;
+  --land: #fbfbfa;
+  --city: #1d232b;
+  --serif: "PT Serif", Georgia, "Times New Roman", serif;
+  --sans: "PT Sans", "Segoe UI", system-ui, sans-serif;
+  --mono: "PT Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #14181d; --panel: #1b2027; --ink: #e6e9ed; --muted: #98a2ae; --line: #2e3640;
+    --accent: #8fb0e0; --accent-soft: #233247; --warn: #e2a64b; --warn-soft: #3a2d18;
+    --map-bg: #101317; --land: #262c34; --city: #e6e9ed;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #14181d; --panel: #1b2027; --ink: #e6e9ed; --muted: #98a2ae; --line: #2e3640;
+  --accent: #8fb0e0; --accent-soft: #233247; --warn: #e2a64b; --warn-soft: #3a2d18;
+  --map-bg: #101317; --land: #262c34; --city: #e6e9ed;
+}
+
+html, body { height: 100%; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--sans); font-size: 15px; line-height: 1.45;
+  display: grid; grid-template-rows: auto 1fr; padding-inline: 16px;
+}
+header {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 16px;
+  padding-block: 14px 10px; border-bottom: 1px solid var(--line);
+}
+header h1 { font-family: var(--serif); font-size: 22px; font-weight: 700; margin: 0; text-wrap: balance; }
+header p { margin: 0; color: var(--muted); font-size: 13px; }
+.app {
+  display: grid; grid-template-columns: 290px minmax(0, 1fr) 330px; gap: 16px;
+  min-height: 0; padding-block: 12px 16px;
+}
+aside, .detail { min-height: 0; display: flex; flex-direction: column; gap: 10px; }
+label.search { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted);
+  text-transform: uppercase; letter-spacing: .06em; }
+input[type="search"] {
+  font: inherit; font-size: 15px; text-transform: none; letter-spacing: 0; color: var(--ink);
+  background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px;
+}
+input[type="search"]:focus-visible, button:focus-visible, .item:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.list { overflow-y: auto; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); flex: 1; }
+.item {
+  display: grid; grid-template-columns: 58px 1fr; gap: 8px; width: 100%; text-align: left;
+  font: inherit; font-size: 13px; color: var(--ink); background: none; border: 0;
+  border-bottom: 1px solid var(--line); padding: 8px 10px; cursor: pointer;
+}
+.item:hover { background: var(--accent-soft); }
+.item[aria-current="true"] { background: var(--accent-soft); box-shadow: inset 3px 0 0 var(--accent); }
+.item .id { font-family: var(--mono); font-size: 12px; color: var(--accent); font-variant-numeric: tabular-nums; }
+.item .t { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.mapwrap { position: relative; min-height: 420px; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+#map { position: absolute; inset: 0; background: var(--map-bg); font-family: var(--sans); }
+.leaflet-tooltip { font-family: var(--sans); font-size: 12px; }
+.city-label { background: none; border: 0; box-shadow: none; color: var(--city); font-size: 11px; padding: 0; }
+.city-label::before { display: none; }
+.detail { overflow-y: auto; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px 14px; }
+.eyebrow { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0 0 4px; }
+.detail h2 { font-family: var(--serif); font-size: 18px; margin: 0 0 6px; text-wrap: balance; }
+.meta { font-family: var(--mono); font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.legend { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.legend li { display: grid; grid-template-columns: 22px 1fr; gap: 10px; align-items: start; }
+.sw { width: 22px; height: 22px; border-radius: 3px; border: 1px solid rgba(0,0,0,.25); }
+.legend .ocr { font-family: var(--serif); font-style: italic; font-size: 14px; }
+.legend .none { color: var(--muted); font-size: 13px; }
+.chip { display: inline-block; font-size: 11px; padding: 1px 7px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); margin-right: 4px; }
+.chip.warn { background: var(--warn-soft); color: var(--warn); }
+.keys { display: grid; gap: 6px; font-size: 13px; color: var(--muted); }
+.keys div { display: flex; align-items: center; gap: 8px; }
+.keys svg { flex: none; }
+.toggle { font: inherit; font-size: 13px; color: var(--accent); background: none; border: 1px solid var(--line);
+  border-radius: 6px; padding: 6px 10px; cursor: pointer; align-self: start; }
+.scan img { display: block; width: 100%; border-radius: 4px; border: 1px solid var(--line); }
+.note { font-size: 12px; color: var(--muted); margin: 0; }
+@media (max-width: 1100px) {
+  .app { grid-template-columns: 250px minmax(0, 1fr); }
+  .detail { grid-column: 1 / -1; }
+}
+@media (max-width: 700px) {
+  body { height: auto; }
+  .app { grid-template-columns: 1fr; }
+  .list { max-height: 220px; }
+  .mapwrap { min-height: 380px; }
+}
+</style>
+
+<header>
+  <h1>БДА · Морфология</h1>
+  <p>Ареали, извлечени автоматично от Обобщаващ том IV (2016). Работна чернова за проверка.</p>
+</header>
+
+<div class="app">
+  <aside>
+    <label class="search" for="q">Търсене по номер или тема
+      <input id="q" type="search" placeholder="напр. 117, член, бъдеще" autocomplete="off">
+    </label>
+    <div class="list" id="list" role="list"></div>
+  </aside>
+
+  <div class="mapwrap"><div id="map" role="img" aria-label="Карта на ареалите"></div></div>
+
+  <section class="detail" aria-live="polite">
+    <div class="card" id="head"></div>
+    <div class="card">
+      <p class="eyebrow">Легенда (текстът е от OCR, непроверен)</p>
+      <ul class="legend" id="legend"></ul>
+    </div>
+    <div class="card keys">
+      <p class="eyebrow">Знаци на картата</p>
+      <div><svg width="26" height="16" aria-hidden="true"><defs><pattern id="k1" width="6" height="6" patternUnits="userSpaceOnUse"><rect width="6" height="6" fill="#ed1c24"/><rect width="3" height="6" fill="#42c8f4"/></pattern></defs><rect width="26" height="16" fill="url(#k1)" stroke="currentColor" stroke-dasharray="3 2"/></svg>Щриховка от два цвята: и двете форми се срещат</div>
+      <div><svg width="26" height="16" aria-hidden="true"><defs><pattern id="k2" width="5" height="5" patternUnits="userSpaceOnUse"><rect width="5" height="5" fill="#ed1c24"/><rect width="1.4" height="5" fill="#333"/></pattern></defs><rect width="26" height="16" fill="url(#k2)" stroke="currentColor" stroke-dasharray="1 2"/></svg>Щриховка с тъмни линии върху цвят</div>
+      <p class="note">Буквените подзони (А, Б…) и пунктирните изоглоси още не са извлечени.</p>
+    </div>
+    <button class="toggle" id="scanBtn" type="button" aria-expanded="false">Покажи оригинала до извлеченото</button>
+    <div class="card scan" id="scan" hidden><img id="scanImg" alt="Сканирана страница и резултат от сегментацията"></div>
+  </section>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+(async function () {
+  const $ = (id) => document.getElementById(id);
+  const index = await (await fetch("index.json")).json();
+  const [territory, cities] = await Promise.all([
+    fetch("territory.geojson").then((r) => r.json()),
+    fetch("cities.json").then((r) => r.json()),
+  ]);
+
+  const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  const map = L.map("map", { zoomSnap: 0.25, attributionControl: false, preferCanvas: false });
+  const svgRenderer = L.svg({ padding: 0.5 }).addTo(map);
+
+  const land = L.geoJSON(territory, { style: () => ({ color: css("--muted"), weight: 1, fillColor: css("--land"), fillOpacity: 1 }) }).addTo(map);
+  map.fitBounds(land.getBounds(), { padding: [10, 10] });
+  const overlay = L.layerGroup().addTo(map);
+  const cityLayer = L.layerGroup().addTo(map);
+  cities.forEach((c) => {
+    L.circleMarker([c.lat, c.lon], { radius: 2.5, color: css("--city"), weight: 1, fillColor: css("--city"), fillOpacity: 1, interactive: false })
+      .bindTooltip(c.name, { permanent: true, direction: "right", className: "city-label", offset: [3, 0] }).addTo(cityLayer);
+  });
+
+  // SVG hatch patterns, created on demand
+  function defs() {
+    const svg = svgRenderer._container;
+    let d = svg.querySelector("defs");
+    if (!d) { d = document.createElementNS("http://www.w3.org/2000/svg", "defs"); svg.prepend(d); }
+    return d;
+  }
+  function pattern(id, build) {
+    const d = defs();
+    if (!d.querySelector("#" + id)) {
+      const p = document.createElementNS("http://www.w3.org/2000/svg", "pattern");
+      p.setAttribute("id", id); p.setAttribute("patternUnits", "userSpaceOnUse");
+      build(p); d.appendChild(p);
+    }
+    return "url(#" + id + ")";
+  }
+  const rect = (p, attrs) => { const r = document.createElementNS("http://www.w3.org/2000/svg", "rect"); for (const k in attrs) r.setAttribute(k, attrs[k]); p.appendChild(r); };
+  const stripes = (a, b) => pattern("m" + a.slice(1) + b.slice(1), (p) => {
+    p.setAttribute("width", 6); p.setAttribute("height", 6);
+    rect(p, { width: 6, height: 6, fill: a }); rect(p, { width: 3, height: 6, fill: b });
+  });
+  const lines = (a) => pattern("l" + a.slice(1), (p) => {
+    p.setAttribute("width", 5); p.setAttribute("height", 5);
+    rect(p, { width: 5, height: 5, fill: a }); rect(p, { width: 1.4, height: 5, fill: "#333" });
+  });
+
+  const specialLabel = { absent: "без явлението", "Н/Х/У": "Н / Х / У" };
+  let current = null;
+
+  function renderList(filter) {
+    const q = (filter || "").trim().toLowerCase();
+    $("list").replaceChildren(...index
+      .filter((m) => !q || String(m.n) === q.replace(/^м\s*/, "") || (m.id + " " + m.title).toLowerCase().includes(q))
+      .map((m) => {
+        const b = document.createElement("button");
+        b.className = "item"; b.type = "button"; b.setAttribute("role", "listitem");
+        b.setAttribute("aria-current", String(current && current.id === m.id));
+        b.innerHTML = '<span class="id"></span><span class="t"></span>';
+        b.querySelector(".id").textContent = m.id;
+        b.querySelector(".t").textContent = m.title || "без заглавие (OCR)";
+        b.addEventListener("click", () => show(m));
+        return b;
+      }));
+  }
+
+  async function show(m) {
+    current = m;
+    renderList($("q").value);
+    try { localStorage.setItem("bda-map", m.id); } catch (e) {}
+    const gj = await (await fetch("maps/M" + String(m.n).padStart(3, "0") + ".geojson")).json();
+    const colourOf = Object.fromEntries(m.classes.map((c) => [c.class, c.colour]));
+    overlay.clearLayers();
+    const order = { areal: 0, lines: 1, mixed: 2 };
+    gj.features.sort((a, b) => order[a.properties.kind] - order[b.properties.kind]);
+    L.geoJSON(gj, {
+      renderer: svgRenderer,
+      style: (f) => {
+        const p = f.properties;
+        if (p.kind === "mixed") return { fillColor: stripes(colourOf[p.class_a] || "#999999", colourOf[p.class_b] || "#999999"), fillOpacity: 1, color: css("--ink"), weight: 0.8, dashArray: "3 2" };
+        if (p.kind === "lines") return { fillColor: lines(colourOf[p.class] || "#999999"), fillOpacity: 1, color: css("--ink"), weight: 0.8, dashArray: "1 2" };
+        return { fillColor: p.colour, fillOpacity: 0.92, color: p.colour, weight: 0.4 };
+      },
+      onEachFeature: (f, layer) => {
+        const p = f.properties;
+        const txt = (k) => { const c = m.classes.find((x) => x.class === k); return c ? (c.legend[0] || specialLabel[c.special] || "клас " + k) : "клас " + k; };
+        const tip = p.kind === "mixed" ? "И двете: " + txt(p.class_a) + " / " + txt(p.class_b)
+          : p.kind === "lines" ? "Щриховка върху: " + txt(p.class) : txt(p.class);
+        layer.bindTooltip(tip, { sticky: true });
+      },
+    }).addTo(overlay);
+    cityLayer.bringToFront && cityLayer.eachLayer((l) => l.bringToFront());
+
+    const warn = m.reg_err > 1.0;
+    $("head").innerHTML = '<p class="eyebrow"></p><h2></h2><div class="meta"></div>';
+    $("head").querySelector(".eyebrow").textContent = "Карта " + m.id.replace(" ", " ") + " · стр. " + m.page;
+    $("head").querySelector("h2").textContent = m.title || "Заглавието не е разпознато";
+    $("head").querySelector(".meta").innerHTML = (warn ? '<span class="chip warn">провери подравняването</span>' : '<span class="chip">подравнена</span>') +
+      "грешка " + m.reg_err.toFixed(2) + " px";
+    $("legend").replaceChildren(...m.classes.map((c) => {
+      const li = document.createElement("li");
+      li.innerHTML = '<span class="sw"></span><div></div>';
+      li.querySelector(".sw").style.background = c.colour;
+      const body = li.querySelector("div");
+      if (c.special) { const s = document.createElement("span"); s.className = "chip"; s.textContent = specialLabel[c.special] || c.special; body.appendChild(s); }
+      const texts = c.legend.filter((t) => t);
+      if (texts.length) texts.forEach((t) => { const d = document.createElement("div"); d.className = "ocr"; d.textContent = t; body.appendChild(d); });
+      else if (!c.special) { const d = document.createElement("div"); d.className = "none"; d.textContent = "няма разпознат текст"; body.appendChild(d); }
+      return li;
+    }));
+    $("scanImg").src = "qa/M" + String(m.n).padStart(3, "0") + ".jpg";
+  }
+
+  $("q").addEventListener("input", (e) => renderList(e.target.value));
+  $("scanBtn").addEventListener("click", () => {
+    const open = $("scan").hidden;
+    $("scan").hidden = !open;
+    $("scanBtn").setAttribute("aria-expanded", String(open));
+    $("scanBtn").textContent = open ? "Скрий оригинала" : "Покажи оригинала до извлеченото";
+  });
+
+  let start = index.find((m) => m.n === 117) || index[0];
+  try { const saved = localStorage.getItem("bda-map"); if (saved) start = index.find((m) => m.id === saved) || start; } catch (e) {}
+  renderList("");
+  show(start);
+})();
+</script>

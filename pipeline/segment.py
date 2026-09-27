@@ -21,8 +21,12 @@ def find_swatches(al):
     region[~off_map[LEGEND_Y0:, :]] = 255
     hsv = cv2.cvtColor(region, cv2.COLOR_BGR2HSV)
     g = cv2.cvtColor(region, cv2.COLOR_BGR2GRAY)
-    coloured = ((hsv[..., 1] > 50) | ((g < 200) & (g > 70))).astype(np.uint8)
-    coloured = cv2.morphologyEx(coloured, cv2.MORPH_CLOSE, np.ones((5, 5), np.uint8))
+    # saturated swatches; grey ones are found separately after an opening that
+    # removes the thin strokes of neighbouring legend text
+    sat = (hsv[..., 1] > 40).astype(np.uint8)
+    grey = ((hsv[..., 1] <= 40) & (g < 225) & (g > 90)).astype(np.uint8)
+    grey = cv2.morphologyEx(grey, cv2.MORPH_OPEN, np.ones((7, 7), np.uint8))
+    coloured = cv2.morphologyEx(sat | grey, cv2.MORPH_CLOSE, np.ones((5, 5), np.uint8))
     n, labels, stats, _ = cv2.connectedComponentsWithStats(coloured)
     out = []
     for i in range(1, n):

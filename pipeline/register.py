@@ -108,7 +108,9 @@ def estimate_robust(ref_bgr, img_bgr, ref_dots=None):
     w, _ = estimate(ref_bgr, img_bgr)
     cands.append((dot_error(ref_dots, img_dots, cv2.invertAffineTransform(w)), w, "ecc"))
     if True:  # always try the dot-based fit; it is usually the most precise
-        M = dots_similarity(ref_dots, img_dots)
+        M = dots_hough(ref_dots, img_dots)
+        if M is None:
+            M = dots_similarity(ref_dots, img_dots)
         if M is not None:
             cands.append((dot_error(ref_dots, img_dots, M.astype(np.float32)), M.astype(np.float32), "dots"))
             a, b = dark_layer(ref_bgr), dark_layer(img_bgr)
@@ -125,3 +127,27 @@ def estimate_robust(ref_bgr, img_bgr, ref_dots=None):
     if method == "dots":
         w = cv2.invertAffineTransform(w).astype(np.float32)
     return w, err, method
+
+
+def dots_hough(ref_dots, img_dots, bin_px=12, tol=(20, 8, 3)):
+    """Fast page->ref fit: vote for the translation over all dot pairs, then
+    iteratively refit an affine transform on the matched dots with a
+    shrinking tolerance (handles a few degrees of rotation and ~10% scale)."""
+    if len(img_dots) < 4 or len(ref_dots) < 4:
+        return None
+    off = (ref_dots[:, None, :] - img_dots[None, :, :]).reshape(-1, 2)
+    keys = np.round(off / bin_px).astype(int)
+    uniq, counts = np.unique(keys, axis=0, return_counts=True)
+    t = uniq[counts.argmax()] * bin_px
+    M = np.float32([[1, 0, t[0]], [0, 1, t[1]]])
+    for tl in tol:
+        mapped = img_dots @ M[:, :2].T + M[:, 2]
+        d = np.linalg.norm(ref_dots[:, None] - mapped[None], axis=2)
+        m = d.min(0) < tl
+        if m.sum() < 4:
+            return None
+        M2, _ = cv2.estimateAffine2D(img_dots[m], ref_dots[d.argmin(0)[m]])
+        if M2 is None:
+            return None
+        M = M2.astype(np.float32)
+    return M
