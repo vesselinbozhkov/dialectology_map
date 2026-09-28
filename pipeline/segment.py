@@ -10,13 +10,14 @@ def lab(img_bgr):
     return cv2.cvtColor(img_bgr, cv2.COLOR_BGR2LAB).astype(np.float32)
 
 
-def find_swatches(al):
+def find_swatches(al, territory=None):
     """Coloured legend squares in the bottom-left legend block.
 
     Returns list of dicts: bbox, bgr colour, has_letter (a dark glyph inside).
     """
     # legend sits below/left of the territory; search everywhere off the map
-    off_map = ~cv2.dilate(territory_mask().astype(np.uint8), np.ones((25, 25), np.uint8)).astype(bool)
+    territory = territory_mask() if territory is None else territory
+    off_map = ~cv2.dilate(territory.astype(np.uint8), np.ones((25, 25), np.uint8)).astype(bool)
     region = al[LEGEND_Y0:, :].copy()
     region[~off_map[LEGEND_Y0:, :]] = 255
     hsv = cv2.cvtColor(region, cv2.COLOR_BGR2HSV)

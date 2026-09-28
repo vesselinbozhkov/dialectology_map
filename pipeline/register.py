@@ -151,3 +151,59 @@ def dots_hough(ref_dots, img_dots, bin_px=12, tol=(20, 8, 3)):
             return None
         M = M2.astype(np.float32)
     return M
+
+
+def city_dots_print(img_bgr, max_level=95):
+    """City dots on the offset-printed vol. I–III scans: truly dark in all
+    channels (the coloured fills are always bright in at least one channel)."""
+    m = (img_bgr.max(2) < max_level).astype(np.uint8)
+    m = cv2.morphologyEx(m, cv2.MORPH_OPEN, np.ones((3, 3), np.uint8))
+    n, _, st, cen = cv2.connectedComponentsWithStats(m)
+    keep = [i for i in range(1, n)
+            if 6 <= st[i][2] <= 14 and 6 <= st[i][3] <= 14
+            and st[i][4] > 0.55 * st[i][2] * st[i][3] and abs(int(st[i][2]) - int(st[i][3])) <= 3]
+    return cen[keep].astype(np.float32)
+
+
+def _poly2(P):
+    x, y = P[:, 0], P[:, 1]
+    return np.stack([np.ones_like(x), x, y, x * x, x * y, y * y], 1)
+
+
+def register_print(ref_dots, img_bgr, tol=4.0):
+    """Vol. I–III page -> vol. IV reference frame.
+
+    Hough-vote the translation on city dots, refine an affine fit, then fit a
+    2nd-order polynomial on the matched dots (book scans are slightly curved).
+    Returns (remap_x, remap_y, n_matched, median_residual_px) or None; the maps
+    are for cv2.remap onto the reference page grid.
+    """
+    best = None
+    for level in (95, 110, 80, 125):
+        d = city_dots_print(img_bgr, level)
+        M = dots_hough(ref_dots, d, tol=(25, 10, 5))
+        if M is None:
+            continue
+        mapped = d @ M[:, :2].T + M[:, 2]
+        dist = np.linalg.norm(ref_dots[:, None] - mapped[None], axis=2)
+        ok = dist.min(1) < tol
+        if best is None or ok.sum() > best[0]:
+            best = (int(ok.sum()), d, dist.argmin(1), ok)
+    if best is None or best[0] < 10:
+        return None
+    n, d, j, ok = best
+    Q, P = ref_dots[ok], d[j[ok]]
+    # inverse mapping ref -> page, for remap
+    coef, *_ = np.linalg.lstsq(_poly2(Q), P, rcond=None)
+    res = np.linalg.norm(_poly2(P) @ np.linalg.lstsq(_poly2(P), Q, rcond=None)[0] - Q, axis=1)
+    return coef, n, float(np.median(res))
+
+
+def apply_print(img_bgr, coef, shape, nearest=False):
+    h, w = shape[:2]
+    yy, xx = np.mgrid[0:h, 0:w].astype(np.float32)
+    src = _poly2(np.stack([xx.ravel(), yy.ravel()], 1)) @ coef
+    mx = src[:, 0].reshape(h, w).astype(np.float32)
+    my = src[:, 1].reshape(h, w).astype(np.float32)
+    return cv2.remap(img_bgr, mx, my, cv2.INTER_NEAREST if nearest else cv2.INTER_LINEAR,
+                     borderMode=cv2.BORDER_CONSTANT, borderValue=(255, 255, 255))

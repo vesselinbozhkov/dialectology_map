@@ -1,5 +1,5 @@
 <meta charset="utf-8">
-<title>БДА Морфология · ареали</title>
+<title>{{PAGE_TITLE}}</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=PT+Sans:wght@400;700&family=PT+Serif:ital,wght@0,400;0,700;1,400&family=PT+Mono&display=swap">
@@ -109,14 +109,14 @@ input[type="search"]:focus-visible, button:focus-visible, .item:focus-visible { 
 </style>
 
 <header>
-  <h1>БДА · Морфология</h1>
-  <p>Ареали, извлечени автоматично от Обобщаващ том IV (2016). Работна чернова за проверка.</p>
+  <h1>{{TITLE}}</h1>
+  <p>{{SUBTITLE}}</p>
 </header>
 
 <div class="app">
   <aside>
     <label class="search" for="q">Търсене по номер или тема
-      <input id="q" type="search" placeholder="напр. 117, член, бъдеще" autocomplete="off">
+      <input id="q" type="search" placeholder="{{SEARCH_HINT}}" autocomplete="off">
     </label>
     <div class="list" id="list" role="list"></div>
   </aside>
@@ -195,7 +195,7 @@ input[type="search"]:focus-visible, button:focus-visible, .item:focus-visible { 
   function renderList(filter) {
     const q = (filter || "").trim().toLowerCase();
     $("list").replaceChildren(...index
-      .filter((m) => !q || String(m.n) === q.replace(/^м\s*/, "") || (m.id + " " + m.title).toLowerCase().includes(q))
+      .filter((m) => !q || m.id.toLowerCase().replace(" ", "") === q.replace(/\s+/g, "") || m.id.split(" ")[1] === q || (m.id + " " + m.title).toLowerCase().includes(q))
       .map((m) => {
         const b = document.createElement("button");
         b.className = "item"; b.type = "button"; b.setAttribute("role", "listitem");
@@ -211,8 +211,8 @@ input[type="search"]:focus-visible, button:focus-visible, .item:focus-visible { 
   async function show(m) {
     current = m;
     renderList($("q").value);
-    try { localStorage.setItem("bda-map", m.id); } catch (e) {}
-    const gj = await (await fetch("maps/M" + String(m.n).padStart(3, "0") + ".geojson")).json();
+    try { localStorage.setItem("bda-map-{{KEY}}", m.id); } catch (e) {}
+    const gj = await (await fetch("maps/" + m.file + ".geojson")).json();
     const colourOf = Object.fromEntries(m.classes.map((c) => [c.class, c.colour]));
     overlay.clearLayers();
     const order = { areal: 0, lines: 1, mixed: 2 };
@@ -252,7 +252,7 @@ input[type="search"]:focus-visible, button:focus-visible, .item:focus-visible { 
       else if (!c.special) { const d = document.createElement("div"); d.className = "none"; d.textContent = "няма разпознат текст"; body.appendChild(d); }
       return li;
     }));
-    $("scanImg").src = "qa/M" + String(m.n).padStart(3, "0") + ".jpg";
+    $("scanImg").src = "qa/" + m.file + ".jpg";
   }
 
   $("q").addEventListener("input", (e) => renderList(e.target.value));
@@ -263,8 +263,8 @@ input[type="search"]:focus-visible, button:focus-visible, .item:focus-visible { 
     $("scanBtn").textContent = open ? "Скрий оригинала" : "Покажи оригинала до извлеченото";
   });
 
-  let start = index.find((m) => m.n === 117) || index[0];
-  try { const saved = localStorage.getItem("bda-map"); if (saved) start = index.find((m) => m.id === saved) || start; } catch (e) {}
+  let start = index.find((m) => m.id === "{{START}}") || index[0];
+  try { const saved = localStorage.getItem("bda-map-{{KEY}}"); if (saved) start = index.find((m) => m.id === saved) || start; } catch (e) {}
   renderList("");
   show(start);
 })();
