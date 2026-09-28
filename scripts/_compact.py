@@ -1,4 +1,8 @@
-"""Helper: append compact legend lines (id|title|item;item;...|norm indices|note) to the notes file."""
+"""Helper: append compact legend lines (id|title|item;item;...|norm indices|note) to the notes file.
+Items are separated by a semicolon with no space after it; "; " inside an item is text.
+
+Item prefixes: `# ` group heading, `x:` item without a swatch, `N=` explicit swatch number."""
+import re
 import sys
 out = []
 for line in sys.stdin.read().strip().splitlines():
@@ -8,8 +12,11 @@ for line in sys.stdin.read().strip().splitlines():
     lit = {int(x) for x in lit.split(',') if x}
     out.append(f"\n@{mid} | {title}")
     i = 0
-    for t in items.split(';'):
+    for t in re.split(r';(?! )', items):  # '; ' inside an item is text
         t = t.strip()
+        if t.startswith('#'):  # group heading
+            out.append(t)
+            continue
         if t.startswith('x:'):
             out.append(f"x | {t[2:].strip()} | -")
             continue
