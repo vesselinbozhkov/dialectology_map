@@ -191,6 +191,7 @@ input[type="search"]:focus-visible, button:focus-visible, .item:focus-visible { 
 
   const specialLabel = { absent: "без явлението", "Н/Х/У": "Н / Х / У", unlisted: "цвят, който липсва в легендата" };
   let current = null;
+  const chunks = {};
 
   function renderList(filter) {
     const q = (filter || "").trim().toLowerCase();
@@ -212,7 +213,9 @@ input[type="search"]:focus-visible, button:focus-visible, .item:focus-visible { 
     current = m;
     renderList($("q").value);
     try { localStorage.setItem("bda-map-{{KEY}}", m.id); } catch (e) {}
-    const gj = await (await fetch("maps/" + m.file + ".geojson")).json();
+    if (!chunks[m.chunk]) chunks[m.chunk] = fetch(m.chunk).then((r) => r.json());
+    const gj = structuredClone((await chunks[m.chunk])[m.file]);
+    if (current !== m) return;
     const colourOf = Object.fromEntries(m.classes.map((c) => [c.class, c.colour]));
     overlay.clearLayers();
     const order = { areal: 0, lines: 1, mixed: 2 };
@@ -235,7 +238,7 @@ input[type="search"]:focus-visible, button:focus-visible, .item:focus-visible { 
     }).addTo(overlay);
     cityLayer.eachLayer((l) => l.bringToFront());
 
-    const warn = m.reg_err > 1.0;
+    const warn = m.reg_err > 2.5;
     $("head").innerHTML = '<p class="eyebrow"></p><h2></h2><div class="meta"></div>';
     $("head").querySelector(".eyebrow").textContent = "Карта " + m.id.replace(" ", " ") + " · стр. " + m.page;
     $("head").querySelector("h2").textContent = m.title || "Заглавието не е разпознато";

@@ -2,7 +2,8 @@
 
 Usage: python pipeline/export_web.py [vol4|vol1-3]
 Writes data/out/web/ (vol4) or data/out/web_<volume>/ with index.html,
-index.json, territory.geojson, cities.json, maps/<code>.geojson, qa/<code>.jpg
+index.json, territory.geojson, cities.json, maps/chunk_NN.json (GeoJSON of
+40 maps each, keyed by map code) and qa/<code>.jpg
 """
 import csv
 import json
@@ -19,6 +20,7 @@ sys.path.insert(0, str(ROOT / "pipeline"))
 from volumes import FILE_CODE, VOLUMES  # noqa: E402
 
 OUT = ROOT / "data" / "out"
+CHUNK = 40  # maps per GeoJSON bundle; an artifact version holds at most 511 files
 
 
 def web_dir(key):
@@ -42,7 +44,9 @@ def main(key="vol4"):
     (web / "maps").mkdir(parents=True, exist_ok=True)
     order = {mid: i for i, (mid, *_) in enumerate(vol.maps())}
     maps = maps.assign(_o=maps.map_id.map(order)).sort_values("_o")
-    index = []
+    index, bundles = [], {}
+    for old in (web / "maps").glob("*"):
+        old.unlink()
     for _, m in maps.iterrows():
         mid = m["map_id"]
         code = code_of(mid)
@@ -51,22 +55,25 @@ def main(key="vol4"):
         ln = lines[lines.map_id == mid].assign(kind="lines")
         feats = gpd.GeoDataFrame(pd.concat([a, h, ln], ignore_index=True), crs=4326)
         feats["geometry"] = shapely.set_precision(feats.geometry.simplify(0.002).values, 1e-5)
-        (web / "maps" / f"{code}.geojson").write_text(
+        chunk = f"maps/chunk_{len(index) // CHUNK:02d}.json"
+        bundles.setdefault(chunk, {})[code] = json.loads(
             feats.drop(columns=["map_id"]).to_json(drop_id=True, na="drop"))
         leg = legend[legend.map_id == mid]
         classes = {int(r["class"]): r["colour"] for _, r in a.iterrows()}
         index.append({
-            "id": mid, "file": code, "page": int(m["page"]), "title": m["title_ocr"],
+            "id": mid, "file": code, "chunk": chunk, "page": int(m["page"]), "title": m["title_ocr"],
             "reg_err": float(m["reg_dot_err_px"]),
             "classes": [{"class": int(c), "colour": col,
                          "special": next((r["special"] for _, r in a.iterrows() if int(r["class"]) == c), ""),
                          "legend": [r["text_ocr"] for _, r in leg.iterrows() if int(r["class"]) == c]}
                         for c, col in sorted(classes.items())],
         })
+    for name, maps_ in bundles.items():  # a few big files instead of one per map
+        (web / name).write_text(json.dumps(maps_, ensure_ascii=False, separators=(",", ":")))
     (web / "index.json").write_text(json.dumps(index, ensure_ascii=False))
     write_base(vol, web)
     write_page(vol, web)
-    size = sum(f.stat().st_size for f in (web / "maps").glob("*.geojson"))
+    size = sum(f.stat().st_size for f in (web / "maps").glob("*.json"))
     print(f"{web}: {len(index)} maps, {size / 1e6:.1f} MB of GeoJSON")
 
 
@@ -93,10 +100,12 @@ def write_page(vol, web):
                .replace("{{KEY}}", vol.key))
     (web / "index.html").write_text(page)
     (web / "qa").mkdir(exist_ok=True)
-    for src in (OUT / "qa" / vol.key, OUT / "qa"):  # older vol4 runs wrote to qa/ directly
-        for f in src.glob("[MFAL][0-9][0-9][0-9].jpg"):
-            if not (web / "qa" / f.name).exists() or src.name == vol.key:
-                shutil.copy(f, web / "qa" / f.name)
+    codes = {FILE_CODE[mid.split()[0]] for mid, *_ in vol.maps()}
+    for f in (web / "qa").glob("*.jpg"):
+        if f.name[0] not in codes:
+            f.unlink()
+    for f in (OUT / "qa" / vol.key).glob("*.jpg"):
+        shutil.copy(f, web / "qa" / f.name)
 
 
 if __name__ == "__main__":
