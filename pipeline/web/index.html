@@ -15,6 +15,7 @@
   --line: #cbd1d8;
   --accent: #2b4c7e;
   --accent-soft: #dfe7f2;
+  --norm: #2f6b3c; --norm-soft: #e3f1e6;
   --warn: #9a5b00;
   --warn-soft: #f6ead6;
   --map-bg: #e4e8ec;
@@ -28,14 +29,14 @@
   :root:not([data-theme="light"]) {
     color-scheme: dark;
     --bg: #14181d; --panel: #1b2027; --ink: #e6e9ed; --muted: #98a2ae; --line: #2e3640;
-    --accent: #8fb0e0; --accent-soft: #233247; --warn: #e2a64b; --warn-soft: #3a2d18;
+    --accent: #8fb0e0; --accent-soft: #233247; --norm: #8fd19e; --norm-soft: #1d3324; --warn: #e2a64b; --warn-soft: #3a2d18;
     --map-bg: #101317; --land: #262c34; --city: #e6e9ed;
   }
 }
 :root[data-theme="dark"] {
   color-scheme: dark;
   --bg: #14181d; --panel: #1b2027; --ink: #e6e9ed; --muted: #98a2ae; --line: #2e3640;
-  --accent: #8fb0e0; --accent-soft: #233247; --warn: #e2a64b; --warn-soft: #3a2d18;
+  --accent: #8fb0e0; --accent-soft: #233247; --norm: #8fd19e; --norm-soft: #1d3324; --warn: #e2a64b; --warn-soft: #3a2d18;
   --map-bg: #101317; --land: #262c34; --city: #e6e9ed;
 }
 
@@ -87,6 +88,13 @@ input[type="search"]:focus-visible, button:focus-visible, .item:focus-visible { 
 .sw { width: 22px; height: 22px; border-radius: 3px; border: 1px solid rgba(0,0,0,.25); }
 .legend .ocr { font-family: var(--serif); font-style: italic; font-size: 14px; }
 .legend .none { color: var(--muted); font-size: 13px; }
+.legend .grp { display: block; font-size: 12px; font-weight: 600; color: var(--muted); margin-top: 4px; }
+.legend li.grp-row { grid-template-columns: 1fr; }
+.legend li.off { opacity: .55; }
+.legend .txt { font-family: var(--serif); font-size: 14px; }
+.legend .txt + .txt { margin-top: 2px; }
+.legend .sw.none-sw { background: transparent; border-style: dashed; }
+.chip.norm { background: var(--norm-soft); color: var(--norm); }
 .chip { display: inline-block; font-size: 11px; padding: 1px 7px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); margin-right: 4px; }
 .chip.warn { background: var(--warn-soft); color: var(--warn); }
 .keys { display: grid; gap: 6px; font-size: 13px; color: var(--muted); }
@@ -126,8 +134,9 @@ input[type="search"]:focus-visible, button:focus-visible, .item:focus-visible { 
   <section class="detail" aria-live="polite">
     <div class="card" id="head"></div>
     <div class="card">
-      <p class="eyebrow">Легенда (текстът е от OCR, непроверен)</p>
+      <p class="eyebrow" id="legendHead">Легенда</p>
       <ul class="legend" id="legend"></ul>
+      <p class="note" id="mapNote" hidden></p>
     </div>
     <div class="card keys">
       <p class="eyebrow">Знаци на картата</p>
@@ -190,13 +199,16 @@ input[type="search"]:focus-visible, button:focus-visible, .item:focus-visible { 
   });
 
   const specialLabel = { absent: "без явлението", "Н/Х/У": "Н / Х / У", unlisted: "цвят, който липсва в легендата" };
+  const haystack = (m) => m._s || (m._s = [m.id, m.title, ...m.classes.flatMap((c) => c.items.map((i) => i.text)),
+    ...m.extra.map((e) => e.text)].join(" ").toLowerCase());
+  const classText = (c) => c.items.map((i) => i.text).filter((t) => t).join(" / ") || specialLabel[c.special] || "клас " + c.class;
   let current = null;
   const chunks = {};
 
   function renderList(filter) {
     const q = (filter || "").trim().toLowerCase();
     $("list").replaceChildren(...index
-      .filter((m) => !q || m.id.toLowerCase().replace(" ", "") === q.replace(/\s+/g, "") || m.id.split(" ")[1] === q || (m.id + " " + m.title).toLowerCase().includes(q))
+      .filter((m) => !q || m.id.toLowerCase().replace(" ", "") === q.replace(/\s+/g, "") || m.id.split(" ")[1] === q || haystack(m).includes(q))
       .map((m) => {
         const b = document.createElement("button");
         b.className = "item"; b.type = "button"; b.setAttribute("role", "listitem");
@@ -230,7 +242,7 @@ input[type="search"]:focus-visible, button:focus-visible, .item:focus-visible { 
       },
       onEachFeature: (f, layer) => {
         const p = f.properties;
-        const txt = (k) => { const c = m.classes.find((x) => x.class === k); return c ? (c.legend[0] || specialLabel[c.special] || "клас " + k) : "клас " + k; };
+        const txt = (k) => { const c = m.classes.find((x) => x.class === k); return c ? classText(c) : "клас " + k; };
         const tip = p.kind === "mixed" ? "И двете: " + txt(p.class_a) + " / " + txt(p.class_b)
           : p.kind === "lines" ? "Щриховка върху: " + txt(p.class) : txt(p.class);
         layer.bindTooltip(tip, { sticky: true });
@@ -244,17 +256,43 @@ input[type="search"]:focus-visible, button:focus-visible, .item:focus-visible { 
     $("head").querySelector("h2").textContent = m.title || "Заглавието не е разпознато";
     $("head").querySelector(".meta").innerHTML = (warn ? '<span class="chip warn">провери подравняването</span>' : '<span class="chip">подравнена</span>') +
       "грешка " + m.reg_err.toFixed(2) + " px";
-    $("legend").replaceChildren(...m.classes.map((c) => {
+    $("legendHead").textContent = m.verified ? "Легенда · преписана и проверена ръчно" : "Легенда · текст от OCR, непроверен";
+    const rows = [];
+    let group = "";
+    const addGroup = (g) => {
+      if (!g || g === group) return;
+      group = g;
+      const li = document.createElement("li"); li.className = "grp-row";
+      const h = document.createElement("span"); h.className = "grp"; h.textContent = g;
+      li.appendChild(h); rows.push(li);
+    };
+    const addTexts = (body, items) => items.forEach((i) => {
+      const d = document.createElement("div"); d.className = m.verified ? "txt" : "txt ocr";
+      d.textContent = i.text || "няма разпознат текст";
+      if (i.norm === true) { const n = document.createElement("span"); n.className = "chip norm"; n.textContent = "книжовно"; d.append(" ", n); }
+      body.appendChild(d);
+    });
+    m.classes.forEach((c) => {
+      addGroup(c.items.length ? c.items[0].group : "");
       const li = document.createElement("li");
+      if (!c.present) { li.className = "off"; li.title = "Този цвят не е открит на извлечената карта"; }
       li.innerHTML = '<span class="sw"></span><div></div>';
       li.querySelector(".sw").style.background = c.colour;
       const body = li.querySelector("div");
       if (c.special) { const s = document.createElement("span"); s.className = "chip"; s.textContent = specialLabel[c.special] || c.special; body.appendChild(s); }
-      const texts = c.legend.filter((t) => t);
-      if (texts.length) texts.forEach((t) => { const d = document.createElement("div"); d.className = "ocr"; d.textContent = t; body.appendChild(d); });
-      else if (!c.special) { const d = document.createElement("div"); d.className = "none"; d.textContent = "няма разпознат текст"; body.appendChild(d); }
-      return li;
-    }));
+      addTexts(body, c.items.filter((i) => i.text || !c.special));
+      rows.push(li);
+    });
+    m.extra.forEach((e) => {
+      addGroup(e.group);
+      const li = document.createElement("li");
+      li.innerHTML = '<span class="sw none-sw" title="без цветно квадратче: знак, щриховка или изоглоса, които още не се извличат"></span><div></div>';
+      addTexts(li.querySelector("div"), [e]);
+      rows.push(li);
+    });
+    $("legend").replaceChildren(...rows);
+    $("mapNote").hidden = !m.note;
+    $("mapNote").textContent = m.note ? "Бележка: " + m.note : "";
     $("scanImg").src = "qa/" + m.file + ".jpg";
   }
 

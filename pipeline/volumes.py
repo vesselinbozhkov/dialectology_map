@@ -95,7 +95,7 @@ class Vol13(Volume):
     """Offset-printed scan: halftone dots, slightly different scale and curvature."""
     key, book_id, parts = "vol1-3", "bda", "ФАЛ"
     title = "БДА · Фонетика, акцентология, лексика"
-    subtitle = "Ареали, извлечени автоматично от Обобщаващ том I–III (2001). Работна чернова за проверка."
+    subtitle = "Ареалите са извлечени автоматично от Обобщаващ том I–III (2001); заглавията и легендите са преписани и проверени ръчно."
     start_map = "Ф 34"
     page_title = "БДА Фонетика, акцентология, лексика"
     search_hint = "напр. Ф 34, Л 40, ят, котка"

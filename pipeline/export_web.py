@@ -17,6 +17,7 @@ import shapely
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "pipeline"))
+from verified import load as load_verified  # noqa: E402
 from volumes import FILE_CODE, VOLUMES  # noqa: E402
 
 OUT = ROOT / "data" / "out"
@@ -45,6 +46,7 @@ def main(key="vol4"):
     order = {mid: i for i, (mid, *_) in enumerate(vol.maps())}
     maps = maps.assign(_o=maps.map_id.map(order)).sort_values("_o")
     index, bundles = [], {}
+    ver = load_verified(key)
     for old in (web / "maps").glob("*"):
         old.unlink()
     for _, m in maps.iterrows():
@@ -58,16 +60,7 @@ def main(key="vol4"):
         chunk = f"maps/chunk_{len(index) // CHUNK:02d}.json"
         bundles.setdefault(chunk, {})[code] = json.loads(
             feats.drop(columns=["map_id"]).to_json(drop_id=True, na="drop"))
-        leg = legend[legend.map_id == mid]
-        classes = {int(r["class"]): r["colour"] for _, r in a.iterrows()}
-        index.append({
-            "id": mid, "file": code, "chunk": chunk, "page": int(m["page"]), "title": m["title_ocr"],
-            "reg_err": float(m["reg_dot_err_px"]),
-            "classes": [{"class": int(c), "colour": col,
-                         "special": next((r["special"] for _, r in a.iterrows() if int(r["class"]) == c), ""),
-                         "legend": [r["text_ocr"] for _, r in leg.iterrows() if int(r["class"]) == c]}
-                        for c, col in sorted(classes.items())],
-        })
+        index.append(entry(m, code, chunk, legend[legend.map_id == mid], a, ver.get(mid)))
     for name, maps_ in bundles.items():  # a few big files instead of one per map
         (web / name).write_text(json.dumps(maps_, ensure_ascii=False, separators=(",", ":")))
     (web / "index.json").write_text(json.dumps(index, ensure_ascii=False))
@@ -75,6 +68,39 @@ def main(key="vol4"):
     write_page(vol, web)
     size = sum(f.stat().st_size for f in (web / "maps").glob("*.json"))
     print(f"{web}: {len(index)} maps, {size / 1e6:.1f} MB of GeoJSON")
+
+
+def entry(m, code, chunk, leg, a, ver):
+    """Index record of one map: one legend row per colour class, in legend
+    order, with the hand-checked text when there is one (else the OCR)."""
+    items = {it["i"]: it for it in ver["items"]} if ver else {}
+    present = {int(r["class"]): r for _, r in a.iterrows()}
+    classes = {}
+    for _, r in leg.sort_values("item").iterrows():
+        it = items.get(int(r["item"]))
+        c = classes.setdefault(int(r["class"]), {"class": int(r["class"]), "colour": r["colour"], "items": []})
+        c["items"].append({"text": it["text"], "group": it["group"], "norm": it["norm"]} if it
+                          else {"text": r["text_ocr"] or "", "group": "", "norm": None})
+    for c, r in present.items():  # grey / beige / unlisted classes have no swatch
+        classes.setdefault(c, {"class": c, "colour": r["colour"], "items": []})
+    beige = next((c for c, r in present.items() if r["special"] == "Н/Х/У"), None)
+    for c in list(classes.values()):  # Н/Х/У swatch merged into a similar colour, or
+        signs = [i for i in c["items"] if i["text"][:3] in ("Н –", "Х –", "У –")]  # its area went to beige
+        if beige is not None and c["class"] != beige and signs and (
+                len(signs) < len(c["items"]) or c["class"] not in present):
+            c["items"] = [i for i in c["items"] if i not in signs]
+            classes[beige]["items"] += signs
+            if not c["items"]:
+                del classes[c["class"]]
+    for c in classes.values():
+        c["special"] = present[c["class"]]["special"] if c["class"] in present else ""
+        c["present"] = c["class"] in present
+    return {
+        "id": m["map_id"], "file": code, "chunk": chunk, "page": int(m["page"]),
+        "title": ver["title"] if ver else m["title_ocr"], "verified": bool(ver),
+        "note": ver["note"] if ver else "", "extra": ver["extra"] if ver else [],
+        "reg_err": float(m["reg_dot_err_px"]), "classes": list(classes.values()),
+    }
 
 
 def write_base(vol, web):
