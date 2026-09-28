@@ -12,6 +12,7 @@ from pathlib import Path
 
 import geopandas as gpd
 import pandas as pd
+import shapely
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "pipeline"))
@@ -49,7 +50,7 @@ def main(key="vol4"):
         h = mixed[mixed.map_id == mid].assign(kind="mixed")
         ln = lines[lines.map_id == mid].assign(kind="lines")
         feats = gpd.GeoDataFrame(pd.concat([a, h, ln], ignore_index=True), crs=4326)
-        feats["geometry"] = feats.geometry.simplify(0.002)
+        feats["geometry"] = shapely.set_precision(feats.geometry.simplify(0.002).values, 1e-5)
         (web / "maps" / f"{code}.geojson").write_text(
             feats.drop(columns=["map_id"]).to_json(drop_id=True, na="drop"))
         leg = legend[legend.map_id == mid]

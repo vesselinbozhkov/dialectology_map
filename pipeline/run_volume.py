@@ -25,7 +25,7 @@ from shapely.ops import transform as shp_transform, unary_union
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from georef import pixel_to_laea  # noqa: E402
 from legend import legend_crops, ocr  # noqa: E402
-from segment import (add_grey_class, classify, colour_classes, find_hatching,  # noqa: E402
+from segment import (add_grey_class, add_unlisted_classes, classify, colour_classes, find_hatching,  # noqa: E402
                      find_line_hatching, find_swatches)
 from territory import ink  # noqa: E402
 from volumes import VOLUMES  # noqa: E402
@@ -59,6 +59,9 @@ def process(vol, entry, T, B):
     swatches = find_swatches(al, T)
     classes = add_grey_class(al, T, colour_classes(swatches))
     labels = classify(al, T, classes, max_dist=vol.max_dist) if classes else np.zeros(T.shape, np.int32)
+    classes, added = add_unlisted_classes(al, T, labels, classes)
+    if added:
+        labels = classify(al, T, classes, max_dist=vol.max_dist)
     own = ink(al) & ~B & T
     mixed = find_hatching(labels, T)
     lines = find_line_hatching(own, T, labels, min_density=0.14, max_ratio=0.8, min_area=400)
@@ -80,7 +83,8 @@ def process(vol, entry, T, B):
         g = polygons(labels == k)
         if g is not None:
             rows["areals"].append({"map_id": map_id, "class": k, "colour": hex_colour(c["bgr"]),
-                                   "special": "absent" if c.get("grey") else ("Н/Х/У" if c.get("beige") else ""), "geometry": to_geo(g)})
+                                   "special": ("absent" if c.get("grey") else "Н/Х/У" if c.get("beige")
+                                               else "unlisted" if c.get("unlisted") else ""), "geometry": to_geo(g)})
     for m, a, b in mixed:
         rows["hatch_mixed"].append({"map_id": map_id, "class_a": a, "class_b": b,
                                     "geometry": to_geo(polygons(m))})

@@ -36,6 +36,8 @@ def find_swatches(al, territory=None):
             box = region[y + 3:y + h - 3, x + 3:x + w - 3].reshape(-1, 3)
             gray = box.mean(1)
             fill = box[gray > 80]  # ignore a dark letter printed on the swatch
+            if len(fill) == 0:
+                fill = box
             out.append({
                 "bbox": (int(x), int(y + LEGEND_Y0), int(w), int(h)),
                 "bgr": tuple(int(v) for v in np.median(fill, 0)),
@@ -162,3 +164,27 @@ def find_line_hatching(own_ink, territory, labels, win=25, min_density=0.16, max
         c[0] = 0
         out.append((m, int(c.argmax())))
     return out
+
+
+def add_unlisted_classes(al, territory, labels, classes, min_share=0.01, tol=20.0):
+    """Coloured areas whose colour is in no legend swatch (print errors, or
+    colours the legend omits). Each such colour becomes an extra class marked
+    'unlisted' so the areal is kept instead of being lost."""
+    hsv = cv2.cvtColor(al, cv2.COLOR_BGR2HSV)
+    todo = (labels == 0) & territory & (hsv[..., 1] > 40) & (hsv[..., 2] > 90)
+    if todo.sum() < min_share * territory.sum():
+        return classes, False
+    L = lab(al)[todo]
+    q = np.round(L / tol).astype(int)
+    keys, inv, counts = np.unique(q, axis=0, return_inverse=True, return_counts=True)
+    added = False
+    for k in np.argsort(-counts):
+        if counts[k] < min_share * territory.sum():
+            break
+        centre = L[inv.ravel() == k].mean(0)
+        if all(np.linalg.norm(c["lab"] - centre) > tol for c in classes):
+            bgr = cv2.cvtColor(np.uint8([[centre]]).astype(np.uint8), cv2.COLOR_LAB2BGR)[0, 0]
+            classes.append({"lab": centre.astype(np.float32), "bgr": tuple(int(v) for v in bgr),
+                            "swatches": [], "unlisted": True})
+            added = True
+    return classes, added
