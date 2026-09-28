@@ -15,6 +15,7 @@
 | `output/bda_vol4.gpkg` | **База данни (GeoPackage, WGS84)** с ареалите на 145-те карти от т. IV |
 | `output/bda_vol1-3.gpkg` | Същото за 366-те карти от т. I–III (Ф 14 и Ф 15 липсват в онлайн сканирането) |
 | `catalog/legends/` | Ръчно преписани заглавия и легенди с белег за книжовна норма (всичките 511 карти) |
+| `output/grid.gpkg` | **Обобщена мрежа**: 1545 шестоъгълника през 12 км с отдалеченост от книжовния език (общо и по дялове) и диалектни групи k = 2…12 |
 | `scripts/` | Сваляне на страниците, PDF с текстов слой, каталог |
 | `pipeline/` | Подравняване, георефериране, сегментация, износ към GeoJSON/уеб преглед |
 
@@ -30,6 +31,8 @@ python pipeline/run_volume.py vol1-3      # т. I–III → data/out/bda_vol1-3.
 python pipeline/verified.py vol4 && python pipeline/verified.py vol1-3  # ръчните легенди → колони title, text, grp, norm + таблица legend_extra
 python pipeline/export_web.py vol4        # преглед → data/out/web/
 python pipeline/export_web.py vol1-3      # преглед → data/out/web_vol1-3/
+python pipeline/grid.py                   # точки × черти, отдалеченост, клъстери → data/out/grid.gpkg
+python pipeline/export_grid.py            # обобщена карта → data/out/web_grid/
 ```
 
 Папката `data/` не се пази в git (сканове, OCR, междинни файлове). Данните са за лична употреба.
@@ -38,3 +41,4 @@ python pipeline/export_web.py vol1-3      # преглед → data/out/web_vol1
 
 - Т. IV „Морфология“: https://claude.ai/artifact/S4tq5yuobruSjiumofKcTp
 - Т. I–III „Фонетика, акцентология, лексика“: https://claude.ai/artifact/ETdMarcANr5YQSrRh1vZnY
+- Обобщена карта (всички 511 карти): https://claude.ai/artifact/TCFg1HDADeJKrz2i2kW8zm
